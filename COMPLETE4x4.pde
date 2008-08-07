@@ -33,7 +33,7 @@ int ic74HC165_sh_ld = 18;
 int ic74HC164_clk = 15;
 int ic74HC164_serial_in = 19;
 
-/* ---USB/Serial Variable--- */
+/* ---USB/Serial--- */
 
 int serial_mapping_x[x_size] = {50,51,52,53,54,55,56,57};
 int serial_mapping_y[y_size] = {97,98,99,100,101,102,103,104};
@@ -45,34 +45,14 @@ int incoming_x = 0;
 int incoming_y = 0;
 int incoming_polarity = 0;
 
-/* ---Software Variables--- */
+/* ---Software--- */
 
 boolean LED_grid[x_size][y_size];
 boolean button_grid[x_size][y_size];
 
 void setup()
 {		
-	/* ---Hardware Setup--- */
-
-	pinMode(ic74HC165_sh_ld, OUTPUT);
-	pinMode(ic74HC165_clk, OUTPUT);
-	
-	digitalWrite(ic74HC165_sh_ld, LOW);
-	digitalWrite(ic74HC165_clk, LOW);
-	
-	pinMode(ic74HC165_Qh, INPUT);
-	
-	/* ------ */
-	
-	pinMode(ic74HC164_serial_in, OUTPUT);
-	pinMode(ic74HC164_clk, OUTPUT);
-	
-	digitalWrite(ic74HC164_serial_in, LOW);
-	digitalWrite(ic74HC164_clk, LOW);
-	
-	ic74HC164_preload();
-	
-	/* ------ */
+	/* ---max7221--- */
 	
 	pinMode(max7221_Din, OUTPUT);
 	pinMode(max7221_clk, OUTPUT);
@@ -84,26 +64,46 @@ void setup()
 	
 	/* ------ */
 	
-	max7221_commit(max7219_reg_scanLimit, constrain(x_size-1,0,7));      
-	max7221_commit(max7219_reg_decodeMode, 0x00);  // using an led matrix (not digits)
+	max7221_commit(max7219_reg_scanLimit, constrain(x_size-1,0,7)); //Only scan as far as necessary
+	max7221_commit(max7219_reg_decodeMode, 0x00); //Decode as an LED matrix
 	max7221_commit(max7219_reg_shutdown, 0x01);
-	max7221_commit(max7219_reg_displayTest, 0x00); // no display test
-	max7221_commit(max7219_reg_intensity, 0x0F);    // the first 0x0F is the value you can set
+	max7221_commit(max7219_reg_displayTest, 0x00); //0x00 for normal operation - 0xFF to test
+	max7221_commit(max7219_reg_intensity, 0x0F); //Value from 0x00 to 0x0F for intensity
 		
 	for(int i = 0; i < x_size; i++) {
-		max7221_commit(max7219_reg_digit[i], 0x00);
+		max7221_commit(max7219_reg_digit[i], 0x00); //Turn off all LEDs
 	}
 	
-	/* ---Software Setup--- */
+	/* ---Serial Registers--- */
+
+	pinMode(ic74HC165_Qh, INPUT);
+
+	pinMode(ic74HC165_clk, OUTPUT);
+	pinMode(ic74HC165_sh_ld, OUTPUT);
 	
-	reset_grid(false);
+	digitalWrite(ic74HC165_clk, LOW);
+	digitalWrite(ic74HC165_sh_ld, LOW);
+		
+	/* ------ */
 	
-	/* ---Serial Setup--- */
+	pinMode(ic74HC164_clk, OUTPUT);
+	pinMode(ic74HC164_serial_in, OUTPUT);
+	
+	digitalWrite(ic74HC164_clk, LOW);
+	digitalWrite(ic74HC164_serial_in, LOW);
+	
+	ic74HC164_preload();
+	
+	/* ---USB/Serial--- */
 	
 	Serial.begin(57600);
+	
+	/* ---Software--- */
+	
+	reset_grid(false);
 }
 
-/* ------ */
+/* ---Main Loop--- */
 
 void loop()
 {
@@ -111,7 +111,7 @@ void loop()
 	incoming();
 }
 
-/* ------ */
+/* ---I/O Functions--- */
 
 void incoming() {
 	while (Serial.available() > 2) {
@@ -168,48 +168,6 @@ void incoming() {
 	}
 }
 
-void redraw_column(int i) {
-	byte column_state = 0x00;
-	for(int j= 0;j < y_size; j++) {
-		if(LED_grid[i][j]) {
-			column_state += 0x01 << j;
-		}
-	}
-	max7221_commit(max7219_reg_digit[i],column_state);
-}
-
-void max7221_commit(byte reg, byte data) {
-	max7221_loadByte(reg);
-	max7221_loadByte(data);
-	pulse(max7221_load);
-}
-
-void max7221_loadByte(byte data) {
-	byte i = 8;
-	byte mask;
-	while(i > 0) {
-		mask = 0x01 << (i - 1);
-		digitalWrite(max7221_clk, LOW);
-		
-		if (data & mask){
-			digitalWrite(max7221_Din, HIGH);
-		} else {
-			digitalWrite(max7221_Din, LOW);
-		}
-		
-		digitalWrite(max7221_clk, HIGH);
-		i--;
-	}
-}
-
-void reset_grid(boolean polarity) {
-	for(int i = 0;i < x_size;i++) {
-		for(int j= 0;j < y_size; j++) {	
-			LED_grid[i][j] = polarity;
-		}
-	}
-}
-
 /* ------ */
 
 void outgoing() {
@@ -249,6 +207,34 @@ void outgoing() {
 	}
 }
 
+/* ------ */
+
+void max7221_commit(byte reg, byte data) {
+	max7221_loadByte(reg);
+	max7221_loadByte(data);
+	pulse(max7221_load);
+}
+
+void max7221_loadByte(byte data) {
+	byte i = 8;
+	byte mask;
+	while(i > 0) {
+		mask = 0x01 << (i - 1);
+		digitalWrite(max7221_clk, LOW);
+		
+		if (data & mask){
+			digitalWrite(max7221_Din, HIGH);
+		} else {
+			digitalWrite(max7221_Din, LOW);
+		}
+		
+		digitalWrite(max7221_clk, HIGH);
+		i--;
+	}
+}
+
+/* ------ */
+
 void ic74HC164_preload() {
 	digitalWrite(ic74HC164_serial_in, LOW);
 	for(int i = 0;i < x_size;i++) {
@@ -259,6 +245,28 @@ void ic74HC164_preload() {
 	pulse(ic74HC164_clk);
 	
 	digitalWrite(ic74HC164_serial_in, LOW);
+}
+
+
+/* ------ */
+
+void reset_grid(boolean polarity) {
+	for(int i = 0;i < x_size;i++) {
+		for(int j= 0;j < y_size; j++) {	
+			LED_grid[i][j] = polarity;
+		}
+		redraw_column(i);
+	}
+}
+
+void redraw_column(int i) {
+	byte column_state = 0x00;
+	for(int j= 0;j < y_size; j++) {
+		if(LED_grid[i][j]) {
+			column_state += 0x01 << j;
+		}
+	}
+	max7221_commit(max7219_reg_digit[i],column_state);
 }
 
 /* ------ */
