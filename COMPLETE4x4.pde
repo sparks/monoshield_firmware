@@ -6,6 +6,13 @@
 #define x_size 8
 #define y_size 8
 
+/* ---USB/Serial--- */
+
+byte incoming_data0 = 0x00;
+byte incoming_data1 = 0x00;
+
+int stray_byte_counter = 0;
+
 /* ---max7221--- */
 
 int max7221_clk = 2;
@@ -33,25 +40,17 @@ int ic74HC165_sh_ld = 18;
 int ic74HC164_clk = 15;
 int ic74HC164_serial_in = 19;
 
-/* ---USB/Serial--- */
-
-int serial_mapping_x[x_size] = {50,51,52,53,54,55,56,57};
-int serial_mapping_y[y_size] = {97,98,99,100,101,102,103,104};
-int serial_mapping_polarity[2] = {48,49};
-
-/* ------ */
-
-int incoming_x = 0;
-int incoming_y = 0;
-int incoming_polarity = 0;
-
 /* ---Software--- */
 
 boolean LED_grid[x_size][y_size];
 boolean button_grid[x_size][y_size];
 
 void setup()
-{		
+{
+	/* ---USB/Serial--- */
+
+	Serial.begin(57600);
+		
 	/* ---max7221--- */
 	
 	pinMode(max7221_Din, OUTPUT);
@@ -94,10 +93,6 @@ void setup()
 	
 	ic74HC164_preload();
 	
-	/* ---USB/Serial--- */
-	
-	Serial.begin(57600);
-	
 	/* ---Software--- */
 	
 	reset_grid(false);
@@ -111,88 +106,48 @@ void loop()
 	incoming();
 }
 
-/* ---I/O Functions--- */
-
-void incoming() {
-	while (Serial.available() > 2) {
-		int ok = 0;
-		int x,y;
-		boolean polarity;
-		
-		incoming_x = Serial.read();
-		incoming_y = Serial.read();
-		incoming_polarity = Serial.read();
-		
-		for(int i = 0;i < x_size;i++) {
-			if(incoming_x == serial_mapping_x[i]) {
-				x = i;
-				ok++;
-			}
-		}
-		
-		for(int i = 0;i < y_size;i++) {
-			if(incoming_y == serial_mapping_y[i]) {
-				y = i;
-				ok++;
-			}
-		}
-		
-		if(incoming_polarity == serial_mapping_polarity[0]) {
-			polarity = false;
-			ok++;
-		} else if (incoming_polarity == serial_mapping_polarity[1]) {
-			polarity = true;
-			ok++;
-		}
-		
-		if(ok != 3) {
-//			Serial.print("Error! ... skipping one char");
-//			Serial.println();
-			while(Serial.available() < 1) {
-				delay(1);
-			}
-			Serial.read();
-		} else {
-			LED_grid[x][y] = polarity;
-			
-			redraw_column(x);
-
-//			Serial.print("I received: ");
-//			Serial.println(x, DEC);
-//			Serial.print("I received: ");
-//			Serial.println(y, DEC);
-//			Serial.print("I received: ");
-//			Serial.println(polarity, DEC);
-//			Serial.println();
-		}
-	}
-}
-
-/* ------ */
+/* ---USB/Serial--- */
 
 void outgoing() {
-	for(int i = 0;i < x_size;i++) {
+	byte data0 = 0x00;
+	byte data1 = 0x00;
+	
+	for(byte i = 0;i < x_size;i++) {
+		
 		digitalWrite(ic74HC165_sh_ld, HIGH);
 		
-		for(int j = 0;j < y_size;j++) {
-			if(digitalRead(ic74HC165_Qh) == HIGH) {
-				if(button_grid[i][j] != true) {
-					button_grid[i][j] = true;
-					Serial.print(serial_mapping_x[i], BYTE);
-					Serial.print(serial_mapping_y[j], BYTE);
-					Serial.print(serial_mapping_polarity[1], BYTE);
-					Serial.println();
-				}
-			} else {
-				if(button_grid[i][j] != false) {
-					button_grid[i][j] = false;
-					Serial.print(serial_mapping_x[i], BYTE);
-					Serial.print(serial_mapping_y[j], BYTE);
-					Serial.print(serial_mapping_polarity[0], BYTE);
-					Serial.println();
-				}
+		for(byte j = 0;j < y_size;j++) {
+			
+			if(digitalRead(ic74HC165_Qh) == HIGH && button_grid[i][j] == false) {
+				button_grid[i][j] = true;
+				data0 = 0x01;
+				data1 = j << 4 | i;
+				Serial.print(data0,BYTE);
+				Serial.print(data1,BYTE);
+				
+			/*	Serial.print("Button ");
+				Serial.print(j,DEC);
+				Serial.print(",");
+				Serial.print(i,DEC);
+				Serial.println(" is pressed");
+				Serial.println(); */
+			} else if(digitalRead(ic74HC165_Qh) == LOW && button_grid[i][j] == true){
+				button_grid[i][j] = false;
+				data0 = 0x00;
+				data1 = j << 4 | i;
+				Serial.print(data0,BYTE);
+				Serial.print(data1,BYTE);
+				
+			/*	Serial.print("Button ");
+				Serial.print(j,DEC);
+				Serial.print(",");
+				Serial.print(i,DEC);
+				Serial.println(" is released");
+				Serial.println(); */
 			}
+			
 			pulse(ic74HC165_clk);
+			
 		}
 		
 		digitalWrite(ic74HC165_sh_ld, LOW);
@@ -209,6 +164,77 @@ void outgoing() {
 
 /* ------ */
 
+void incoming() {
+	while (Serial.available() > 1) {
+		
+		incoming_data0 = Serial.read();
+		incoming_data1 = Serial.read();
+		
+		switch((incoming_data0 & 0xF0) >> 4) {
+			case 0x02: //led
+				LED_grid[(incoming_data1 & 0xF0) >> 4][incoming_data1 & 0x0F] = incoming_data0 & 0x0F;
+				redraw_column((incoming_data1 & 0xF0) >> 4);
+			/*	Serial.print("I received: ");
+				Serial.println((incoming_data1 & 0xF0) >> 4, DEC);
+				Serial.print("I received: ");
+				Serial.println(incoming_data1 & 0x0F, DEC);
+				Serial.print("I received: ");
+				Serial.println(incoming_data0 & 0x0F, DEC);
+				Serial.println(); */
+			break;
+			case 0x03: //led intensity
+				max7221_commit(max7219_reg_intensity, incoming_data1 & 0x0F);
+			break;
+			case 0x04: //led test
+				if(incoming_data1 & 0x0F) {
+					max7221_commit(max7219_reg_displayTest, 0x01);
+				} else {
+					max7221_commit(max7219_reg_displayTest, 0x00);
+				}
+			break;
+			case 0x05: //adc_enable
+				delay(1); //NOT IMPLEMENTED AS OF NOW
+			break;
+			case 0x06: //shutdown
+				if(incoming_data1 & 0x0F) {
+					max7221_commit(max7219_reg_shutdown, 0x00);
+				} else {
+					max7221_commit(max7219_reg_shutdown, 0x01);
+				}
+			break;
+			case 0x07: //led_row
+				int row = incoming_data0 & 0x0F;
+				for(int i = 0;i < x_size;i++) {
+					LED_grid[i][row] = incoming_data1 & (0x01 << i);
+					redraw_column(i);
+				}
+			break;
+			case 0x08: //led_col
+				int col = incoming_data0 & 0x0F;
+				for(int j = 0;j < y_size;j++) {
+					LED_grid[col][j] = incoming_data1 & (0x01 << j);
+				}
+				redraw_column(col);
+			break;
+		}
+	}
+		
+	/* ---Test for out of sync bytes--- */
+			
+	if(Serial.available() == 1) {
+		if(stray_byte_counter >= 80) {
+		//	Serial.print("Error! ... skipping one byte");
+		//	Serial.println();
+			Serial.read();
+			stray_byte_counter = 0;
+		} else {
+			stray_byte_counter++;
+		}			
+	}
+}
+
+/* ---max7221--- */
+
 void max7221_commit(byte reg, byte data) {
 	max7221_loadByte(reg);
 	max7221_loadByte(data);
@@ -220,7 +246,6 @@ void max7221_loadByte(byte data) {
 	byte mask;
 	while(i > 0) {
 		mask = 0x01 << (i - 1);
-		digitalWrite(max7221_clk, LOW);
 		
 		if (data & mask){
 			digitalWrite(max7221_Din, HIGH);
@@ -228,12 +253,12 @@ void max7221_loadByte(byte data) {
 			digitalWrite(max7221_Din, LOW);
 		}
 		
-		digitalWrite(max7221_clk, HIGH);
+		pulse(max7221_clk);
 		i--;
 	}
 }
 
-/* ------ */
+/* ---Serial Registers--- */
 
 void ic74HC164_preload() {
 	digitalWrite(ic74HC164_serial_in, LOW);
@@ -248,7 +273,7 @@ void ic74HC164_preload() {
 }
 
 
-/* ------ */
+/* ---Software--- */
 
 void reset_grid(boolean polarity) {
 	for(int i = 0;i < x_size;i++) {
@@ -263,7 +288,7 @@ void redraw_column(int i) {
 	byte column_state = 0x00;
 	for(int j= 0;j < y_size; j++) {
 		if(LED_grid[i][j]) {
-			column_state += 0x01 << j;
+			column_state |= 0x01 << j;
 		}
 	}
 	max7221_commit(max7219_reg_digit[i],column_state);
