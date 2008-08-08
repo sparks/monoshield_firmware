@@ -220,8 +220,9 @@ void incoming() {
 	}
 		
 	/* ---Test for out of sync bytes--- */
+	/* ---!!!!!!!Keep this commented out for manual testing!!!!!!--- */
 			
-	if(Serial.available() == 1) {
+/*	if(Serial.available() == 1) {
 		if(stray_byte_counter >= 80) {
 		//	Serial.print("Error! ... skipping one byte");
 		//	Serial.println();
@@ -230,7 +231,7 @@ void incoming() {
 		} else {
 			stray_byte_counter++;
 		}			
-	}
+	}*/
 }
 
 /* ---max7221--- */
