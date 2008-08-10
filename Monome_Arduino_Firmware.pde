@@ -1,5 +1,5 @@
 /*
- * COMPLETE 4x4
+ * Monome Arduino Firmware
  *
  */
 
@@ -222,16 +222,18 @@ void incoming() {
 	/* ---Test for out of sync bytes--- */
 	/* ---!!!!!!!Keep this commented out for manual testing!!!!!!--- */
 			
-/*	if(Serial.available() == 1) {
-		if(stray_byte_counter >= 80) {
+	if(Serial.available() == 1) {
+		if(stray_byte_counter < 80) {
+			stray_byte_counter++;
+		} else {
 		//	Serial.print("Error! ... skipping one byte");
 		//	Serial.println();
 			Serial.read();
 			stray_byte_counter = 0;
-		} else {
-			stray_byte_counter++;
 		}			
-	}*/
+	} else {
+		stray_byte_counter = 0;
+	}
 }
 
 /* ---max7221--- */
