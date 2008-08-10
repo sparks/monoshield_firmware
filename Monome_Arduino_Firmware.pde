@@ -49,7 +49,7 @@ void setup()
 {
 	/* ---USB/Serial--- */
 
-	Serial.begin(57600);
+	Serial.begin(9600);
 		
 	/* ---max7221--- */
 	
@@ -172,7 +172,7 @@ void incoming() {
 		
 		switch((incoming_data0 & 0xF0) >> 4) {
 			case 0x02: //led
-				LED_grid[(incoming_data1 & 0xF0) >> 4][incoming_data1 & 0x0F] = incoming_data0 & 0x0F;
+				LED_grid[constrain((incoming_data1 & 0xF0) >> 4,0,x_size-1)][constrain(incoming_data1 & 0x0F,0,y_size-1)] = incoming_data0 & 0x0F;
 				redraw_column((incoming_data1 & 0xF0) >> 4);
 			/*	Serial.print("I received: ");
 				Serial.println((incoming_data1 & 0xF0) >> 4, DEC);
@@ -203,14 +203,14 @@ void incoming() {
 				}
 			break;
 			case 0x07: //led_row
-				int row = incoming_data0 & 0x0F;
+				int row = constrain(incoming_data0 & 0x0F,0,y_size-1);
 				for(int i = 0;i < x_size;i++) {
 					LED_grid[i][row] = incoming_data1 & (0x01 << i);
 					redraw_column(i);
 				}
 			break;
 			case 0x08: //led_col
-				int col = incoming_data0 & 0x0F;
+				int col = constrain(incoming_data0 & 0x0F,0,x_size-1);
 				for(int j = 0;j < y_size;j++) {
 					LED_grid[col][j] = incoming_data1 & (0x01 << j);
 				}
