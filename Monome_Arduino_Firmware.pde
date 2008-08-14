@@ -45,11 +45,13 @@ int ic74HC164_serial_in = 19;
 boolean LED_grid[x_size][y_size];
 boolean button_grid[x_size][y_size];
 
+int n = 0;
+
 void setup()
 {
 	/* ---USB/Serial--- */
 
-	Serial.begin(9600);
+	Serial.begin(57600);
 		
 	/* ---max7221--- */
 	
@@ -102,8 +104,9 @@ void setup()
 
 void loop()
 {
-	outgoing();
+	if(n%10 == 0) outgoing();
 	incoming();
+	n++;
 }
 
 /* ---USB/Serial--- */
@@ -165,8 +168,9 @@ void outgoing() {
 /* ------ */
 
 void incoming() {
+	
 	while (Serial.available() > 1) {
-		
+				
 		incoming_data0 = Serial.read();
 		incoming_data1 = Serial.read();
 		
@@ -193,7 +197,7 @@ void incoming() {
 				}
 			break;
 			case 0x05: //adc_enable
-				delay(1); //NOT IMPLEMENTED AS OF NOW
+			//	delay(1); //NOT IMPLEMENTED AS OF NOW
 			break;
 			case 0x06: //shutdown
 				if(incoming_data1 & 0x0F) {
@@ -228,7 +232,7 @@ void incoming() {
 		} else {
 		//	Serial.print("Error! ... skipping one byte");
 		//	Serial.println();
-			Serial.read();
+			Serial.flush();
 			stray_byte_counter = 0;
 		}			
 	} else {
