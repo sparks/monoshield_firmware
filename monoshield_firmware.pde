@@ -15,9 +15,9 @@ int stray_byte_counter = 0;
 
 /* ---max7221--- */
 
-int max7221_clk = 2;
-int max7221_Din = 4;
-int max7221_load = 5;
+int max7221_clk = 7;
+int max7221_load = 8;
+int max7221_Din = 9;
 
 /* ------ */
 
@@ -31,14 +31,14 @@ byte max7219_reg_displayTest = 0x0f;
 
 /* ---Serial Registers--- */
 
-int ic74HC165_Qh = 16;
-int ic74HC165_clk = 17;
-int ic74HC165_sh_ld = 18;
+int ic74HC165_clk = 4;
+int ic74HC165_sh_ld = 5;
+int ic74HC165_Qh = 6;
 
 /* ------ */
 
-int ic74HC164_clk = 15;
-int ic74HC164_serial_in = 19;
+int ic74HC164_clk = 2;
+int ic74HC164_serial_in = 3;
 
 /* ---Software--- */
 
@@ -47,8 +47,7 @@ boolean button_grid[x_size][y_size];
 
 int n = 0;
 
-void setup()
-{
+void setup() {
 	/* ---USB/Serial--- */
 
 	Serial.begin(57600);
@@ -102,8 +101,7 @@ void setup()
 
 /* ---Main Loop--- */
 
-void loop()
-{
+void loop() {
 	if(n%10 == 0) outgoing();
 	incoming();
 	n++;
@@ -115,11 +113,11 @@ void outgoing() {
 	byte data0 = 0x00;
 	byte data1 = 0x00;
 	
-	for(byte i = 0;i < x_size;i++) {
+	for(byte i = 0;i < y_size;i++) {
 		
 		digitalWrite(ic74HC165_sh_ld, HIGH);
 		
-		for(byte j = 0;j < y_size;j++) {
+		for(byte j = 0;j < x_size;j++) {
 			
 			if(digitalRead(ic74HC165_Qh) == HIGH && button_grid[i][j] == false) {
 				button_grid[i][j] = true;
@@ -155,7 +153,7 @@ void outgoing() {
 		
 		digitalWrite(ic74HC165_sh_ld, LOW);
 		
-		if(i < (x_size-1)) {
+		if(i < (y_size-1)) {
 			digitalWrite(ic74HC164_serial_in, LOW);
 			pulse(ic74HC164_clk);
 		} else {	
@@ -207,18 +205,22 @@ void incoming() {
 				}
 			break;
 			case 0x07: //led_row
-				int row = constrain(incoming_data0 & 0x0F,0,y_size-1);
-				for(int i = 0;i < x_size;i++) {
-					LED_grid[i][row] = incoming_data1 & (0x01 << i);
-					redraw_column(i);
+				{
+					int row = constrain(incoming_data0 & 0x0F,0,y_size-1);
+					for(int i = 0;i < x_size;i++) {
+						LED_grid[i][row] = incoming_data1 & (0x01 << i);
+						redraw_column(i);
+					}
 				}
 			break;
 			case 0x08: //led_col
-				int col = constrain(incoming_data0 & 0x0F,0,x_size-1);
-				for(int j = 0;j < y_size;j++) {
-					LED_grid[col][j] = incoming_data1 & (0x01 << j);
+				{
+					int col = constrain(incoming_data0 & 0x0F,0,x_size-1);
+					for(int j = 0;j < y_size;j++) {
+						LED_grid[col][j] = incoming_data1 & (0x01 << j);
+					}
+					redraw_column(col);
 				}
-				redraw_column(col);
 			break;
 		}
 	}
